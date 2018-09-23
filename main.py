@@ -14,7 +14,6 @@ from sklearn.preprocessing import StandardScaler
 n_classes = 3
 n_nodes_hl1 = 90
 n_nodes_hl2 = 90
-n_nodes_hl3 = 500
 batch_size = 100
 test_size = 0.1
 
@@ -59,13 +58,13 @@ def neural_network_model(data):
         "biases": tf.Variable(tf.random_normal([n_nodes_hl1]))
     }
 
-    hidden_2_layer = {
-        "weights": tf.Variable(tf.random_normal([n_nodes_hl1, n_nodes_hl2])),
-        "biases": tf.Variable(tf.random_normal([n_nodes_hl2]))
-    }
+    # hidden_2_layer = {
+    #     "weights": tf.Variable(tf.random_normal([n_nodes_hl1, n_nodes_hl2])),
+    #     "biases": tf.Variable(tf.random_normal([n_nodes_hl2]))
+    # }
 
     output_layer = {
-        "weights": tf.Variable(tf.random_normal([n_nodes_hl2, n_classes])),
+        "weights": tf.Variable(tf.random_normal([n_nodes_hl1, n_classes])),
         "biases": tf.Variable(tf.random_normal([n_classes]))
     }
 
@@ -73,11 +72,11 @@ def neural_network_model(data):
     l1 = tf.add(tf.matmul(data, hidden_1_layer["weights"]), hidden_1_layer["biases"])
     l1 = tf.nn.relu(l1)  # relu if that is your activation function
 
-    l2 = tf.add(
-        tf.matmul(l1, hidden_2_layer["weights"]), hidden_2_layer["biases"])
-    l2 = tf.nn.relu(l2)
+    # l2 = tf.add(
+    #     tf.matmul(l1, hidden_2_layer["weights"]), hidden_2_layer["biases"])
+    # l2 = tf.nn.relu(l2)
 
-    output = tf.matmul(l2, output_layer["weights"]) + output_layer["biases"]
+    output = tf.matmul(l1, output_layer["weights"]) + output_layer["biases"]
     print("Finished creating model...")
     return output
 
@@ -91,8 +90,7 @@ def train_neural_network(x):
     print("Training the neural network")
     prediction = neural_network_model(x)
     print("Setting cost")
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction,
-                                                                  labels=y))  # cost function used to update weights in backprop
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))  # cost function used to update weights in backprop
     # adam optimizer takes a learning_rate parameter, default is 0.001
     print("Setting optimizer")
     optimizer = tf.train.AdamOptimizer().minimize(cost)  # AdamOptimizer is synonymous with stochastic gradient descent
