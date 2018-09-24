@@ -1,21 +1,13 @@
-"""
-input > weight > hidden layer 1 (activation function) > weights > hidden layer 2 (activation function) > weights > output layer
-This is the FFN
-compare output to intended output > cost function (cross entropy because of classification)
-optimization function (optimizer) > mimimize cost (adamoptimizer, SGD, AdaGrad)
-backpropagation
-feed forward + backprop = epoch
-"""
 import tensorflow as tf
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 
 n_classes = 3
 n_nodes_hl1 = 90
-n_nodes_hl2 = 90
 batch_size = 100
 test_size = 0.1
+NUM_RUNS = 1
 
 # [height, width] no height because we flatten it out
 x = tf.placeholder('float', [None, 17])  # input data
@@ -30,14 +22,14 @@ def one_hot_encode(values):
 
 
 def parse_data(filename):
-    data = pd.read_csv(filename)
+    data = pd.read_csv(filename).sample(frac=1)
     print("Data read")
     slice_index = int(len(data) * test_size)
     training_data = data[:-slice_index]
     test_data = data[-slice_index:]
     test_features = list(test_data.loc[:, test_data.columns != "class"].values)
     train_features = list(training_data.loc[:, training_data.columns != "class"].values)
-    sc = StandardScaler()
+    sc = RobustScaler()
     train_features = sc.fit_transform(train_features)
     test_features = sc.transform(test_features)
     return {
@@ -58,11 +50,6 @@ def neural_network_model(data):
         "biases": tf.Variable(tf.random_normal([n_nodes_hl1]))
     }
 
-    # hidden_2_layer = {
-    #     "weights": tf.Variable(tf.random_normal([n_nodes_hl1, n_nodes_hl2])),
-    #     "biases": tf.Variable(tf.random_normal([n_nodes_hl2]))
-    # }
-
     output_layer = {
         "weights": tf.Variable(tf.random_normal([n_nodes_hl1, n_classes])),
         "biases": tf.Variable(tf.random_normal([n_classes]))
@@ -71,10 +58,6 @@ def neural_network_model(data):
     # (input_data * weights) + biases
     l1 = tf.add(tf.matmul(data, hidden_1_layer["weights"]), hidden_1_layer["biases"])
     l1 = tf.nn.relu(l1)  # relu if that is your activation function
-
-    # l2 = tf.add(
-    #     tf.matmul(l1, hidden_2_layer["weights"]), hidden_2_layer["biases"])
-    # l2 = tf.nn.relu(l2)
 
     output = tf.matmul(l1, output_layer["weights"]) + output_layer["biases"]
     print("Finished creating model...")
@@ -85,8 +68,6 @@ def train_neural_network(x):
     """
     x = input data
     """
-    print("Parsing the data")
-    data = parse_data('sloan-digital-sky-survey/dataset.csv')
     print("Training the neural network")
     prediction = neural_network_model(x)
     print("Setting cost")
@@ -94,32 +75,49 @@ def train_neural_network(x):
     # adam optimizer takes a learning_rate parameter, default is 0.001
     print("Setting optimizer")
     optimizer = tf.train.AdamOptimizer().minimize(cost)  # AdamOptimizer is synonymous with stochastic gradient descent
-    # how many epochs = cycles of feed forward + backprop
-    hm_epochs = 100
-    with tf.Session() as sess:
-        print("Starting the session")
-        sess.run(tf.global_variables_initializer())
-        # This section trains the network
-        for epoch in range(hm_epochs):
-            print("Starting epoch {}".format(epoch))
-            epoch_loss = 0
-            i = 0
-            while i < len(data["train_features"]):
-                start = i
-                end = i + batch_size
-                batch_x = np.array(data["train_features"][start:end])
-                batch_y = np.array(data["train_labels"][start:end])
-                i += batch_size
-                # c is the cost
-                _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
-                epoch_loss += c
-            print("Epoch {} completed out of {}, loss: {}".format(epoch, hm_epochs, epoch_loss))
+    results = []
+    for i in range(NUM_RUNS):
+        print("RUN #{}".format(i))
+        print("Parsing the data")
+        data = parse_data('sloan-digital-sky-survey/dataset.csv')
+        # how many epochs = cycles of feed forward + backprop
+        hm_epochs = 100
+        with tf.Session() as sess:
+            print("Starting the session")
+            sess.run(tf.global_variables_initializer())
+            # This section trains the network
+            run_results = {
+                "test_accuracy": 0,
+                "train_accuracy": 0,
+                "epoch_loss": [],
+            }
+            
+            for epoch in range(hm_epochs):
+                epoch_loss = 0
+                i = 0
+                while i < len(data["train_features"]):
+                    start = i
+                    end = i + batch_size
+                    batch_x = np.array(data["train_features"][start:end])
+                    batch_y = np.array(data["train_labels"][start:end])
+                    i += batch_size
+                    # c is the cost
+                    _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
+                    epoch_loss += c
+                run_results["epoch_loss"].append(epoch_loss)
+                print("Epoch {} completed out of {}, loss: {}".format(epoch, hm_epochs, epoch_loss))
 
-        correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
+            correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
+            # Check the test data against the trained network
+            accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
+            run_results["test_accuracy"] = accuracy.eval({x: data["test_features"], y: data["test_labels"]})
+            print("Test Accuracy: {}".format(run_results["test_accuracy"]))
+            run_results["train_accuracy"] = accuracy.eval({x: data["train_features"], y: data["train_labels"]})
+            print("Train Accuracy: {}".format(run_results["train_accuracy"]))
+            run_results["correct"] = correct.eval({x: data["train_features"], y: data["train_labels"]})
+            results.append(run_results)
+        print("=" * 50)
+    return results
 
-        # Check the test data against the trained network
-        accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
-        print("Accuracy: {}".format(accuracy.eval({x: data["test_features"], y: data["test_labels"]})))
 
-
-train_neural_network(x)
+results = train_neural_network(x)
