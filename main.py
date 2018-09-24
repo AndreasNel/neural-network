@@ -108,13 +108,7 @@ def train_neural_network(x):
                     _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
                     epoch_loss += c
                 run_results["epoch_loss"].append(epoch_loss)
-                print("Using {} instances...".format(len(train_features)))
                 print("Epoch {} completed out of {}, loss: {}".format(epoch, hm_epochs, epoch_loss))
-                new_train_features = np.array(train_features)
-                new_train_labels = np.array(train_labels)
-                success = correct.eval(feed_dict={x: new_train_features, y: new_train_labels})
-                train_features = np.asarray(new_train_features[~success])
-                train_labels = np.asarray(new_train_labels[~success])
 
             # Check the test data against the trained network
             accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
